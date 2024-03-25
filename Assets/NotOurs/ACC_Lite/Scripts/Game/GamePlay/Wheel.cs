@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using PG_Physics.Wheel;
+using UnityEngine.Serialization;
 
 /// <summary>
 /// Wheel settings and update logic.
@@ -9,7 +10,7 @@ using PG_Physics.Wheel;
 [System.Serializable]
 public struct Wheel
 {
-	public WheelCollider WheelCollider;
+	[FormerlySerializedAs("WheelCollider")] public WheelCollider wheelCollider;
 	public Transform WheelView;
 	public float SlipForGenerateParticle;
 	public Vector3 TrailOffset;
@@ -17,9 +18,9 @@ public struct Wheel
 	public float CurrentMaxSlip { get { return Mathf.Max (CurrentForwardSleep, CurrentSidewaysSleep); } }
 	public float CurrentForwardSleep { get; private set; }
 	public float CurrentSidewaysSleep { get; private set; }
-	public WheelHit GetHit { get { return Hit; } }
+	public WheelHit GetHit { get { return hit; } }
 
-	WheelHit Hit;
+	WheelHit hit;
 	TrailRenderer Trail;
 
 	PG_WheelCollider m_PGWC;
@@ -29,11 +30,11 @@ public struct Wheel
 		{
 			if (m_PGWC == null)
 			{
-				m_PGWC = WheelCollider.GetComponent<PG_WheelCollider> ();
+				m_PGWC = wheelCollider.GetComponent<PG_WheelCollider> ();
 			}
 			if (m_PGWC == null)
 			{
-				m_PGWC = WheelCollider.gameObject.AddComponent<PG_WheelCollider> ();
+				m_PGWC = wheelCollider.gameObject.AddComponent<PG_WheelCollider> ();
 				m_PGWC.CheckFirstEnable ();
 			}
 			return m_PGWC;
@@ -50,16 +51,46 @@ public struct Wheel
 	/// <summary>
 	/// Update gameplay logic.
 	/// </summary>
+	
 	public void FixedUpdate ()
 	{
 
-		if (WheelCollider.GetGroundHit (out Hit))
+		if (wheelCollider.GetGroundHit (out hit))
 		{
-			var prevForwar = CurrentForwardSleep;
-			var prevSide = CurrentSidewaysSleep;
+			//var prevForwar = CurrentForwardSleep;
+			//var prevSide = CurrentSidewaysSleep;
+/*
+			var transform = wheelCollider.transform;
+			Vector3 currentPosition = transform.position;
+			Quaternion currentRotation = transform.rotation;
 
-			CurrentForwardSleep = (prevForwar + Mathf.Abs (Hit.forwardSlip)) / 2;
-			CurrentSidewaysSleep = (prevSide + Mathf.Abs (Hit.sidewaysSlip)) / 2;
+			// Calculate linear velocity of the wheel's center
+			Vector3 linearVelocity = (currentPosition - lastPosition) / Time.deltaTime;
+
+			// Calculate angular velocity of the wheel
+			Quaternion deltaRotation = currentRotation * Quaternion.Inverse(lastRotation);
+			deltaRotation.ToAngleAxis(out var angleInDegrees, out _);
+			float angularVelocity = angleInDegrees * Mathf.Deg2Rad / Time.deltaTime;
+
+			// Estimate velocity at the contact point
+			Vector3 velocityAtContactPoint = linearVelocity + Vector3.Cross(wheelCollider.transform.up, -wheelCollider.radius * angularVelocity * wheelCollider.transform.right);
+
+			// Calculate forward slip
+			float forwardSlip = Mathf.Atan2(-velocityAtContactPoint.x, Mathf.Abs(velocityAtContactPoint.z)) * Mathf.Rad2Deg;
+
+			// Calculate sideways slip
+			float sidewaysSlip = Mathf.Atan2(-velocityAtContactPoint.y, Mathf.Abs(velocityAtContactPoint.z)) * Mathf.Rad2Deg;
+
+			// Use the slip values as needed
+			Debug.Log($"Forward Slip: {forwardSlip}, Sideways Slip: {sidewaysSlip}");
+
+			// Update last position and rotation
+			lastPosition = currentPosition;
+			lastRotation = currentRotation;
+*/
+			CurrentForwardSleep = Mathf.Abs(hit.forwardSlip);// forwardSlip;//(prevForwar + Mathf.Abs (forwardSlip)) / 2;
+			CurrentSidewaysSleep = Mathf.Abs(hit.sidewaysSlip);// sidewaysSlip;//(prevSide + Mathf.Abs (sidewaysSlip)) / 2;
+			Debug.Log($"Forward Slip: {CurrentForwardSleep}, Sideways Slip: {CurrentSidewaysSleep}");
 		}
 		else
 		{
@@ -74,28 +105,26 @@ public struct Wheel
 	/// 
 	public void UpdateVisual ()
 	{
-		
-		UpdateTransform ();
 
 		//if (WheelCollider.isGrounded && CurrentMaxSlip > SlipForGenerateParticle)
-		Debug.DrawRay(WheelCollider.transform.position, Vector3.down, (WheelCollider.isGrounded? (CurrentMaxSlip > SlipForGenerateParticle)?Color.green: Color.yellow : Color.red),1);
-		if (WheelCollider.isGrounded && CurrentMaxSlip > SlipForGenerateParticle)
+		Debug.DrawRay(wheelCollider.transform.position, Vector3.down, (wheelCollider.isGrounded? (CurrentMaxSlip > SlipForGenerateParticle)?Color.green: Color.yellow : Color.red),1);
+		if (wheelCollider.isGrounded && CurrentMaxSlip > SlipForGenerateParticle)
 		{
 			//Emit particle.
 			var particles = FXController.GetAspahaltParticles;
-			var point = WheelCollider.transform.position;
-			point.y = Hit.point.y;
+			var point = wheelCollider.transform.position;
+			point.y = hit.point.y;
 			particles.transform.position = point;
 			particles.Emit (1);
 
 			if (!Trail)
 			{
 				//Get free or create trail.
-				HitPoint = WheelCollider.transform.position;
-				HitPoint.y = Hit.point.y;
+				HitPoint = wheelCollider.transform.position;
+				HitPoint.y = hit.point.y;
 				Trail = FXController.GetTrail (HitPoint);
 				Transform transform;
-				(transform = Trail.transform).SetParent (WheelCollider.transform);
+				(transform = Trail.transform).SetParent (wheelCollider.transform);
 				transform.localPosition += TrailOffset;
 			}
 		}
@@ -109,7 +138,7 @@ public struct Wheel
 
 	public void UpdateTransform ()
 	{
-		WheelCollider.GetWorldPose (out var pos, out var quat);
+		wheelCollider.GetWorldPose (out var pos, out var quat);
 		WheelView.SetPositionAndRotation(pos,quat); 
 	}
 

@@ -86,7 +86,8 @@ public class CarController :MonoBehaviour
 	{
 		RB = GetComponent<Rigidbody>();
 		ob = GetComponent<NetworkObject>();
-		
+	
+
 		RB.centerOfMass = COM.localPosition;
 
 		//Copy wheels in public property
@@ -96,7 +97,13 @@ public class CarController :MonoBehaviour
 			RearLeftWheel,
 			RearRightWheel
 		};
-
+		if (!ob.IsOwner)
+		{
+			for (int i = 0; i < Wheels.Length; i++)
+			{
+				Wheels[i].SlipForGenerateParticle = 0.0001f;
+			}
+		}
 		//Set drive wheel.
 		switch (DriveType)
 		{
@@ -160,7 +167,10 @@ public class CarController :MonoBehaviour
 		for (int i = 0; i < Wheels.Length; i++)
 		{
 			Wheels[i].UpdateVisual();
-			if(ob.IsOwner)
+			if (ob.IsOwner)
+			{
+				Wheels[i].UpdateTransform();
+			}
 		}
 	}
 
@@ -178,17 +188,17 @@ public class CarController :MonoBehaviour
 
         if (InHandBrake)
         {
-            RearLeftWheel.WheelCollider.brakeTorque = MaxBrakeTorque;
-            RearRightWheel.WheelCollider.brakeTorque = MaxBrakeTorque;
-            FrontLeftWheel.WheelCollider.brakeTorque = 0;
-            FrontRightWheel.WheelCollider.brakeTorque = 0;
+            RearLeftWheel.wheelCollider.brakeTorque = MaxBrakeTorque;
+            RearRightWheel.wheelCollider.brakeTorque = MaxBrakeTorque;
+            FrontLeftWheel.wheelCollider.brakeTorque = 0;
+            FrontRightWheel.wheelCollider.brakeTorque = 0;
         }
 
         for (int i = 0; i < Wheels.Length; i++)
 		{
             if (!InHandBrake)
             {
-                Wheels[i].WheelCollider.brakeTorque = CurrentBrake;
+                Wheels[i].wheelCollider.brakeTorque = CurrentBrake;
             }
 
 			Wheels[i].FixedUpdate ();
@@ -226,8 +236,8 @@ public class CarController :MonoBehaviour
 		targetAngle = Mathf.Clamp (targetAngle + CurrentSteerAngle, -(MaxSteerAngle + 10), MaxSteerAngle + 10);
 
 		//Front wheel turn.
-		Wheels[0].WheelCollider.steerAngle = targetAngle;
-		Wheels[1].WheelCollider.steerAngle = targetAngle;
+		Wheels[0].wheelCollider.steerAngle = targetAngle;
+		Wheels[1].wheelCollider.steerAngle = targetAngle;
 
 		if (needHelp)
 		{
@@ -310,7 +320,7 @@ public class CarController :MonoBehaviour
 		float minRPM = 0;
 		for (int i = FirstDriveWheel + 1; i <= LastDriveWheel; i++)
 		{
-			minRPM += Wheels[i].WheelCollider.rpm;
+			minRPM += Wheels[i].wheelCollider.rpm;
 		}
 
 		minRPM /= LastDriveWheel - FirstDriveWheel + 1;
@@ -349,13 +359,13 @@ public class CarController :MonoBehaviour
 				float maxWheelRPM = AllGearsRatio[CurrentGearIndex] * EngineRPM;
 				for (int i = FirstDriveWheel; i <= LastDriveWheel; i++)
 				{
-					if (Wheels[i].WheelCollider.rpm <= maxWheelRPM)
+					if (Wheels[i].wheelCollider.rpm <= maxWheelRPM)
 					{
-						Wheels[i].WheelCollider.motorTorque = motorTorque;
+						Wheels[i].wheelCollider.motorTorque = motorTorque;
 					}
 					else
 					{
-						Wheels[i].WheelCollider.motorTorque = 0;
+						Wheels[i].wheelCollider.motorTorque = 0;
 					}
 				}
 			}
@@ -370,7 +380,7 @@ public class CarController :MonoBehaviour
 
             for (int i = FirstDriveWheel; i <= LastDriveWheel; i++)
 			{
-				Wheels[i].WheelCollider.motorTorque = 0;
+				Wheels[i].wheelCollider.motorTorque = 0;
 			}
 		}
 

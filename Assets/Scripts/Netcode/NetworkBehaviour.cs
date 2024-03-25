@@ -59,8 +59,6 @@ namespace Netcode
             byte[] update = new byte[RequiredUpdateLength];
             SendUpdate(ref update);
 
-            print("Updating: " + GetType() + "Index: " + index + ", Update size: " + RequiredUpdateLength +
-                  ", bytes length: " + bytes.Length);
             
             //So by doing a constrained copy, the size of "bytes" can remain the same, meaning we always will only do one allocation.
             Buffer.BlockCopy(update, 0, bytes, index, RequiredUpdateLength);

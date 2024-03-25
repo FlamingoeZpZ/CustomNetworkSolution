@@ -5214,22 +5214,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   FrontLeftWheel:
-    WheelCollider: {fileID: 146816972422453170}
+    wheelCollider: {fileID: 146816972422453170}
     WheelView: {fileID: 4504585144788098}
     SlipForGenerateParticle: 0.4
     TrailOffset: {x: 0.1, y: 0.05, z: 0}
   FrontRightWheel:
-    WheelCollider: {fileID: 146051005712781346}
+    wheelCollider: {fileID: 146051005712781346}
     WheelView: {fileID: 4753621073852002}
     SlipForGenerateParticle: 0.4
     TrailOffset: {x: -0.1, y: 0.05, z: 0}
   RearLeftWheel:
-    WheelCollider: {fileID: 146773974386548606}
+    wheelCollider: {fileID: 146773974386548606}
     WheelView: {fileID: 4582149132493874}
     SlipForGenerateParticle: 0.4
     TrailOffset: {x: 0.1, y: 0.05, z: 0}
   RearRightWheel:
-    WheelCollider: {fileID: 146890387250386138}
+    wheelCollider: {fileID: 146890387250386138}
     WheelView: {fileID: 4206531779298738}
     SlipForGenerateParticle: 0.4
     TrailOffset: {x: -0.1, y: 0.05, z: 0}
