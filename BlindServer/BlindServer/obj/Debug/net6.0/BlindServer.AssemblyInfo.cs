@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("BlindServer")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+779f7c48ca9b2ab22e23cab0364082ee6f7dc6e8")]
 [assembly: System.Reflection.AssemblyProductAttribute("BlindServer")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BlindServer")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

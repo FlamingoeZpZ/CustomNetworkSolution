@@ -2,7 +2,8 @@ using UnityEngine;
 
 public static class MyInput
 {
-    private static CustomInput myInputs;
+ 
+    /*private static CustomInput myInputs;
 
     public static void Init(Player p)
     {
@@ -21,8 +22,8 @@ public static class MyInput
         myInputs.Permanent.Enable();
         myInputs.Permanent.TickRate.performed += ctx =>
         {
-            StaticUtilities.MilliDelay = Mathf.Max(0, StaticUtilities.MilliDelay + (int)ctx.ReadValue<float>());
-            Debug.Log("Setting the new milli delay: " + StaticUtilities.MilliDelay);
+            //NetworkManager.NetworkData.milliDelay = Mathf.Max(0, NetworkManager.MilliDelay + (int)ctx.ReadValue<float>());
+            //Debug.Log("Setting the new milli delay: " + NetworkManager.MilliDelay);
         };
     }
 
@@ -37,5 +38,5 @@ public static void UIMode()
         myInputs.Game.Enable();
         myInputs.UI.Disable();
     }
-
+*/
 }

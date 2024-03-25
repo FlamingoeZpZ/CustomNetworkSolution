@@ -2,13 +2,26 @@
 
 using System.Net;
 using System.Net.Sockets;
-using BlindServer;
 
-public class Server
+namespace BlindServer;
+
+[Serializable]
+public struct ServerInfo
 {
+    public int TcpMilliDelay;
+    public int UdpMilliDelay;
+    public ulong LocalUserId;
+}
+
+public static class Server
+{
+    
+    
     public static readonly Dictionary<string, Tuple<ulong,Socket>> TcpClients = new();
     public static readonly HashSet<EndPoint> UdpClients = new();
     private static readonly string directory = "Settings.dat";
+    public static int TCPMilliDelay = 20;
+    public static int UDPMilliDelay = 20;
     
     public static List<ulong> GetAllIds(ulong ignore)
     {
@@ -51,7 +64,44 @@ public class Server
         UdpServer udp = new UdpServer(ip, 8889);
         while (true)
         {
+            string? str  = Console.ReadLine()?.ToLower();
+            if (string.IsNullOrEmpty(str)) continue;
+            string[] args = str.Split(' ');
+            switch (args[0])
+            {
+                case "quit": 
+                    Console.WriteLine("Shutting down server");
+                    tcp.Dispose();
+                    udp.Dispose();
+                    return;
+                case "clear":
+                    if (args.Length != 2) break;
+                    if (args[1] == "settings")
+                    {
+                        File.Delete(directory);
+                    }
+
+                    break;
+                case "tickrate":
+                    if (args.Length < 2) break;
+                    if (int.TryParse(args[2], out int x))
+                    {
+                        if(args[1] == "tcp")
+                            TCPMilliDelay = x;
+                        else if (args[1] == "udp")
+                            UDPMilliDelay = x;
+                        else
+                            break;
+                        tcp.UpdateServerInfo();
+                    } 
+                    break;
+                
+                default:
+                    Console.WriteLine("Unrecognized command: " + str);
+                    break;
+            }
         }
+        
     }
     //Chat gpt generated
     public static void WriteIntToFile(string filePath, int value)

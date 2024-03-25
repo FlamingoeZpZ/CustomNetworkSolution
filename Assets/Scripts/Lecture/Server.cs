@@ -1,92 +1,290 @@
 using System;
-using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Serialization;
+using Netcode;
 using UnityEngine;
 
 namespace Lecture
 {
-    public  static class UDPServer
+    [Serializable]
+    public struct Message
     {
-        private static readonly Socket _server;
-        
-        static readonly ArraySegment<byte> _receiveBuffer = new ArraySegment<byte>();
-        static UDPServer()
-        {
+        public ulong sender;
+        public byte functionName;
+        public byte[] content;
+    }
+    
+    [Serializable]
+    public struct ServerInfo
+    {
+        public int TcpMilliDelay;
+        public int UdpMilliDelay;
+        public ulong LocalUserId;
+    }
 
+    public class UDPServer  : IDisposable
+    {
+        private readonly Socket _server;
+        private const int BufferSize = 1024;
+        private byte[] _receiveBuffer = new byte[BufferSize];
+        private readonly IPEndPoint _serverEndpoint;
+        private bool isRunning;
+        public UDPServer(IPAddress ip, int port)
+        {
+            _server = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            _serverEndpoint = new IPEndPoint(ip, port);
+            isRunning = true;
+        }
+
+        ~UDPServer()
+        {
+            Dispose(false);
+        }
+
+        public void Close()
+        {
+            isRunning = false;
+            if (_server == null) return;
+            Debug.Log("Quitting on UDP");
             try
             {
-                _server = new Socket(StaticUtilities.ServerEndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
-                _server.Bind(StaticUtilities.ServerEndPoint);
+                _server.Shutdown(SocketShutdown.Both);
             }
-            catch (Exception e)
+            finally
             {
-                Debug.Log(e);
+                _server.Close();
+            }
+        }
+
+        public async Task UDPSend(byte[] packet)
+        {
+            //Debug.Log("Sending UDP packet: " + packet.Length +"B");
+            await _server.SendToAsync(packet, SocketFlags.None, _serverEndpoint);
+        }
+
+        private async void UDPReceive()
+        {
+            while (isRunning)
+            {
+                //Handle Heartbeat
+                //Using ReceiveMessageFrom just crashes it...? It's not interally implemented or soemthing in this version of c#?
+              
+                var n = await _server.ReceiveFromAsync(_receiveBuffer, SocketFlags.None, _serverEndpoint);
+                //Debug.Log("Update Received");
+                NetworkManager.Instance.UdpReceiveUpdate(ref _receiveBuffer, n.ReceivedBytes);
+                /*
+                 string xml = Encoding.UTF8.GetString(_receiveBuffer,0,n.ReceivedBytes);
+                Debug.Log(xml);
+                using var reader = new StringReader(xml);
+                var serializer = new XmlSerializer(typeof(Message));
+                NetworkManager.Instance.ReceivedMessageFromServer((Message)serializer.Deserialize(reader)!);
+                */
             }
         }
         
-        
-    
-    
-        public static async Task<SocketReceiveFromResult> ReceiveFromAsync(ArraySegment<byte> bytes, SocketFlags flags,  IPEndPoint endPoint)
+        public async void UDPHeartbeat()
         {
-            return await _server.ReceiveFromAsync(bytes, flags, endPoint);
+            UDPReceive();
+            while (isRunning)
+            {
+                await NetworkManager.Instance.SendUDPUpdate();
+                await Task.Delay(TCPServer.info.UdpMilliDelay);
+            }
+        }
+
+        private void ReleaseUnmanagedResources()
+        {
+            Close();
+        }
+
+        private void Dispose(bool disposing)
+        {
+            ReleaseUnmanagedResources();
+            if (disposing)
+            {
+                _server?.Dispose();
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
     }
 
     public class TCPServer
     {
-
-        private readonly Socket _server;
-        private readonly List<Socket> _clients = new();
-        private bool _isRunning = true;
+        public static ServerInfo info;
+       
+        private const int MaxTries = 10;
         
+        
+        //Received from server.
+        private const int BufferSize = 1024;
 
-        public TCPServer()
+        private readonly string _name;
+        private readonly Socket _client;
+        private readonly IPEndPoint _endPoint;
+
+        private byte[] _receiveBuffer = new byte[BufferSize];
+        private bool _isRunning;
+        
+        
+        public TCPServer(string clientName, IPAddress ip, int port)
         {
-            _server = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
-            {
-                ReceiveBufferSize = StaticUtilities.BufferSize,
-                SendBufferSize = StaticUtilities.BufferSize
-            };
-            try
-            {
-                _server.Bind(StaticUtilities.ServerEndPoint);
-                _server.Listen(StaticUtilities.MaxConnections);
-            }
-            catch (Exception e)
-            {
-                Debug.Log("Failed during server initializing: " + e);
-                return;
-            }
-            StartServer();
+            _name = clientName;
+            
+            _client = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            _endPoint = new IPEndPoint(ip, port);
         }
 
-        private async void StartServer()
+        public async Task<bool> Connect()
+        {
+            int attempts = 0;
+            while (!_client.Connected)
+            {
+                await Task.Delay(info.TcpMilliDelay);
+                await TryConnect();
+                if (++attempts >= MaxTries) return false;
+            }
+            _isRunning = true;
+            BeginUpdate();
+            return true;
+        }
+
+        private async Task TryConnect()
         {
             try
             {
-                Socket user = await _server.AcceptAsync();
-                _clients.Add(user);
+                _client.Connect(_endPoint);
+                Debug.Log("My name is: " + _name);
+                await _client.SendAsync(Encoding.ASCII.GetBytes(_name), SocketFlags.None);
+                //When a client connects, we must inform them of a few things...
+                _receiveBuffer = new byte[BufferSize];
+                /*
+                int m =await _client.ReceiveAsync(_receiveBuffer, SocketFlags.None);
+                //First we need to parse our ID
+                string xml = Encoding.UTF8.GetString(_receiveBuffer,0,m);
+                Debug.Log(xml);
+                using (var reader = new StringReader(xml))
+                {
+                    var serializer = new XmlSerializer(typeof(ServerInfo));
+                    info = (ServerInfo)serializer.Deserialize(reader)!;
+                }
+                Debug.Log($"Server Info: ID: {info.LocalUserId}, Millis {info.TcpMilliDelay}");
+                */
             }
             catch (Exception e)
-            {
-                Debug.Log(e);
-                return;
+            { 
+               Debug.LogError("Failed to connect: " + e);
             }
-            StartServer(); // Repeat for all eternity...
         }
 
-      
-
-
-        //Try to make sure everything is getting cleaned up!
-        private void CloseServer()
+        public async void BeginUpdate()
         {
+            //We're always running.
+            while (_isRunning)
+            {
+                await HeartBeat();
+                await Task.Delay(info.TcpMilliDelay);
+            }
+        }
+
+        private async Task HeartBeat()
+        {
+            int receive = 0;
+            Debug.Log("Heartbeat");
+            try
+            {
+                _receiveBuffer = new byte[BufferSize];
+                receive = await _client.ReceiveAsync(_receiveBuffer, SocketFlags.None);
+            }
+            catch (SocketException e)
+            {
+                Debug.LogError("Failed to read: " + e);
+                Quit();
+            }
+            if (receive == 0) return;
+            string xml = Encoding.UTF8.GetString(_receiveBuffer,0,receive);
+            Debug.Log(xml);
+            using var reader = new StringReader(xml);
+            var serializer = new XmlSerializer(typeof(Message[]));
+            Message[] msgs = (Message[])serializer.Deserialize(reader)!;
+            foreach (var msg in msgs) NetworkManager.Instance.ReceivedMessageFromServer(msg);
+        }
+
+        public void Quit()
+        {
+            if (_client == null) return;
+            Debug.Log("Quitting on TCP");
             _isRunning = false;
-            _server.Shutdown(SocketShutdown.Both);
-            _server.Close();
+            try
+            {
+                _client.Shutdown(SocketShutdown.Both);
+            }
+            catch (Exception e)
+            {
+                // ignored
+                Debug.LogError("Error while quitting: " + e);
+            }
+            finally
+            {
+                _client.Close();
+            }
         }
+
+        /*
+        public async void SendMessage(byte[] bytes)
+        {
+            try
+            {
+                if (bytes.Length >= BufferSize) throw new Exception("Message too long");
+                await _client.SendAsync(bytes, SocketFlags.None);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("Failed to send message: " + e);
+            }
+        } */
+        
+        public async void SendMessage(byte[] bytes)
+        {
+            try
+            {
+                if (bytes.Length >= BufferSize) throw new Exception("Message too long");
+                await _client.SendAsync(bytes, SocketFlags.None);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("Failed to send message: " + e);
+            }
+        }
+
+        private void Dispose(bool disposing)
+        {
+            Quit();
+            if (disposing)
+            {
+                _client?.Dispose();
+            }
+        }
+
+        public void Dispose()
+        {
+            Quit();
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        ~TCPServer()
+        {
+            Dispose(false);
+        }
+
     }
 }

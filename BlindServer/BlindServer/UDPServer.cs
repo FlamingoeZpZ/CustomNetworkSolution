@@ -102,7 +102,6 @@ public class UdpServer : IDisposable
             if (client.Equals(ignore)) continue;
             
                 
-                //But this will send over TCP... DO we seriously need another list for UDP clients.
                 try
                 {
                     /*

@@ -9,16 +9,11 @@ namespace BlindServer
     public class TcpServer : IDisposable
     {
         private static ulong _counter;
-        [Serializable]
-        public struct ServerInfo
-        {
-            public int MilliDelay;
-            public ulong LocalUserId;
-        }
+        
 
         private const int BufferSize = 1024;
         public const int MaxConnections = 8;
-        public const int ServerMilliDelay = 20;
+        
         
         [Serializable]
         public struct Message
@@ -105,32 +100,12 @@ namespace BlindServer
                 await _server.DisconnectAsync(true);
                 return;
             }
-            
 
-            
-            //Send all the server information
-            
-            //TODO" Xml serialize the server info and send it to the client, who must have a copy of the same struct. Error handling is definitely required.
-
+            await UpdateServerInfo(name);
+            await Task.Delay(100); // Stop interleaving, because I'm too lazy to fix
             await using (TextWriter writer = new StringWriter())
             {
-                ServerInfo sr = new ServerInfo()
-                {
-                    LocalUserId = _counter,
-                    MilliDelay = ServerMilliDelay
-                };
-
-                XmlSerializer ser = new XmlSerializer(typeof(ServerInfo));
-                ser.Serialize(writer, sr);
-                //string? bts = writer.ToString();
-                //serializer.Serialize(writer, new Message(0, bts)); //XML serialization must go first... That hinders like everything...
-                await SendMessageToClient(name, writer.ToString());
-            }
-
-            await Task.Delay(100); // The packets are being sent together for some reason... Which is causing a read error.
-            
-            await using (TextWriter writer = new StringWriter())
-            {
+                
                 _serializer.Serialize(writer, new Message[]{ new(){ 
                     sender = _counter,
                    functionName = 0, 
@@ -145,7 +120,7 @@ namespace BlindServer
                 //Update all client player counts.
                 await SendMessageToAll(ulong.MaxValue, writer.ToString());
             }
-
+          
 
             HandleConnections(); // Repeat for all eternity...
             Console.WriteLine("Clients have been told about: " + name +", ID: " + id);
@@ -154,6 +129,36 @@ namespace BlindServer
 
         }
 
+        public async Task UpdateServerInfo(string? name = null)
+        {
+            string? str;
+            await using (TextWriter writer = new StringWriter()){
+                XmlSerializer ser = new XmlSerializer(typeof(ServerInfo));
+                ser.Serialize(writer, new ServerInfo()
+                {
+                    LocalUserId = _counter,
+                    TcpMilliDelay = Server.TCPMilliDelay,
+                    UdpMilliDelay = Server.UDPMilliDelay
+                });
+                str = writer.ToString();
+            }
+            await using TextWriter writer2 = new StringWriter();
+            _serializer.Serialize(writer2, new Message[]{ new(){ 
+                    sender = 0,
+                    functionName = 2, 
+                    content = Encoding.UTF8.GetBytes(str ?? throw new InvalidOperationException())
+                }
+            });
+           
+            //string? bts = writer.ToString();
+            //serializer.Serialize(writer, new Message(0, bts)); //XML serialization must go first... That hinders like everything...
+
+            if(string.IsNullOrEmpty(name)) await SendMessageToAll(ulong.MaxValue,writer2.ToString());
+            else await SendMessageToClient(name, writer2.ToString());
+
+        }
+
+        
         private void OnServerListUpdated()
         {
             Console.WriteLine("---------------Client list updated-------------------");
@@ -171,7 +176,7 @@ namespace BlindServer
         {
             while (true)
             {
-                await Task.Delay(ServerMilliDelay);
+                await Task.Delay(Server.TCPMilliDelay);
                 var list = Server.TcpClients.ToArray();
 
                 foreach (var client in list)
@@ -212,13 +217,13 @@ namespace BlindServer
 
         #region Messaging
 
-        private async Task SendMessageToAll(ulong ignore, string message)
+        private async Task SendMessageToAll(ulong ignore, string? message)
         {
             byte[] b = Encoding.UTF8.GetBytes(message);
             await SendMessageToAll(ignore,  b);
         }
 
-        private async Task SendMessageToClient(string target, string message)
+        private async Task SendMessageToClient(string target, string? message)
         {
             byte[] b = Encoding.UTF8.GetBytes(message);
             await SendMessageToClient(target, b);

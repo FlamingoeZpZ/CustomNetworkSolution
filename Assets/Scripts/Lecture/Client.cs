@@ -39,8 +39,15 @@ namespace Lecture
         private void OnDestroy()
         {
             if (_clientSocket == null) return;
-            //_clientSocket.Shutdown(SocketShutdown.Both);
-            _clientSocket.Close();
+            try
+            {
+                _clientSocket.Shutdown(SocketShutdown.Both);
+            }
+            finally
+            {
+                _clientSocket.Close();
+            }
+
             Debug.Log("Client Stopping");
         }
     }
