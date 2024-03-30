@@ -1,18 +1,15 @@
-using System.Collections;
-using System.Collections.Generic;
+using Netcode;
 using UnityEngine;
 
 public class CheckPoint : MonoBehaviour
 {
-    // Start is called before the first frame update
-    void Start()
+    private void OnTriggerEnter(Collider other)
     {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
+        if (other.TryGetComponent(out NetworkObject x) && x.IsOwner) // Only the locally controlled player will have this.
+        {
+            
+            CheckPointManager.SetNextCheckPoint(x.transform);
+            gameObject.SetActive(false);
+        }
     }
 }

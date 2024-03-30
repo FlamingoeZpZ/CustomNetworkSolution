@@ -54,6 +54,10 @@ namespace Lecture
             {
                 _server.Shutdown(SocketShutdown.Both);
             }
+            catch (Exception e)
+            {
+                Debug.LogError(e.ToString());
+            }
             finally
             {
                 _server.Close();
@@ -234,6 +238,7 @@ namespace Lecture
             }
             finally
             {
+                Debug.Log("Reached");
                 _client.Close();
             }
         }
@@ -252,7 +257,7 @@ namespace Lecture
             }
         } */
         
-        public async void SendMessage(byte[] bytes)
+        public async Task SendMessage(byte[] bytes)
         {
             try
             {

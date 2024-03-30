@@ -163,7 +163,6 @@ public class CarController :MonoBehaviour
 
 	private void Update ()
 	{
-		
 		for (int i = 0; i < Wheels.Length; i++)
 		{
 			Wheels[i].UpdateVisual();
@@ -176,6 +175,7 @@ public class CarController :MonoBehaviour
 
 	private void FixedUpdate ()
 	{
+		if (!IsRunning) return;
 
 		CurrentSpeed = RB.velocity.magnitude;
 
@@ -279,13 +279,12 @@ public class CarController :MonoBehaviour
 	public float GetMaxRPM { get { return MaxRPM; } }
 	public float GetMinRPM { get { return MinRPM; } }
 	public float GetInCutOffRPM { get { return CutOffRPM - CutOffOffsetRPM; } }
+	public bool IsRunning { get; set; }
 
 	float CutOffTimer;
 	bool InCutOff;
-
 	void UpdateRpmAndTorqueLogic ()
 	{
-
 		if (InCutOff)
 		{
 			if (CutOffTimer > 0)
@@ -299,7 +298,7 @@ public class CarController :MonoBehaviour
 			}
 		}
 
-		if (!GameController.RaceIsStarted)
+		if (!GameBeginner.RaceIsStarted)
 		{
 			if (InCutOff)
 				return;

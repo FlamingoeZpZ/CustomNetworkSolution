@@ -60,6 +60,12 @@ namespace BlindServer
                 return;
             }
 
+            _spawnPoints = new();
+            for (int i = 14; i >= 0; --i) { // There are 14 spawn points.
+                _spawnPoints.Add(i);
+                Console.WriteLine($"Adding SpawnPoint {i}");
+            }
+            
             HandleConnections();
             HeartBeat();
         }
@@ -78,6 +84,32 @@ namespace BlindServer
                 int t = await user.ReceiveAsync(_receiveBuffer, SocketFlags.None);
                 
                 name = Encoding.UTF8.GetString(_receiveBuffer,0, t);
+
+                if (Server.TcpClients.ContainsKey(name))
+                {
+                    string? str;
+                    await using (var xa = new StringWriter())
+                    {
+                        _serializer.Serialize(xa, new Message[]
+                        {
+                            new ()
+                            {
+                                sender = 0,
+                                functionName = 6,
+                                content = Encoding.UTF8.GetBytes("Name already taken")
+                            }
+                        });
+                        str = xa.ToString();
+                    }
+                    Console.WriteLine(str);
+
+                    await user.SendAsync(Encoding.UTF8.GetBytes(str ?? throw new InvalidOperationException()), SocketFlags.None);
+                    await user.DisconnectAsync(false);
+                    Console.WriteLine("Name already taken: " + name);
+                    HandleConnections(); // Repeat for all eternity...
+                    return;
+                }
+
 
                 Console.WriteLine("Successfully registered: " + name);
 
@@ -98,6 +130,7 @@ namespace BlindServer
             if (!Server.TcpClients.TryAdd(name, new Tuple<ulong, Socket>(++ _counter, user)))
             {
                 await _server.DisconnectAsync(true);
+                HandleConnections(); // Repeat for all eternity...
                 return;
             }
 
@@ -105,7 +138,11 @@ namespace BlindServer
             await Task.Delay(100); // Stop interleaving, because I'm too lazy to fix
             await using (TextWriter writer = new StringWriter())
             {
-                
+                byte[] x = BitConverter.GetBytes(GetSpawnPoint(name));
+                byte[] y = Server.GetAllIds(_counter).SelectMany(BitConverter.GetBytes).ToArray();
+                byte[] z = new byte[x.Length + y.Length];
+                x.CopyTo(z, 0);
+                y.CopyTo(z, x.Length);
                 _serializer.Serialize(writer, new Message[]{ new(){ 
                     sender = _counter,
                    functionName = 0, 
@@ -114,7 +151,7 @@ namespace BlindServer
                 new(){ 
                     sender = _counter,
                     functionName = 1, 
-                    content = Server.GetAllIds(_counter).SelectMany(BitConverter.GetBytes).ToArray()//Send over all currently connected users.
+                    content =  z//Send over all currently connected users.
                 }
                 });
                 //Update all client player counts.
@@ -157,8 +194,31 @@ namespace BlindServer
             else await SendMessageToClient(name, writer2.ToString());
 
         }
-
         
+        public async void BeginGame()
+        {
+            Message []m = 
+            {
+                new ()
+                {
+                    sender = 0,
+                    functionName = 4,
+                    content = BitConverter.GetBytes(StartTime)
+                }
+            };
+            string? str;
+            await using (TextWriter tw = new StringWriter())
+            {
+                _serializer.Serialize(tw, m);
+                str = tw.ToString();
+            }
+
+            await SendMessageToAll(0,str);
+        }
+
+        public const double StartTime = 3;
+
+
         private void OnServerListUpdated()
         {
             Console.WriteLine("---------------Client list updated-------------------");
@@ -186,6 +246,8 @@ namespace BlindServer
                     {
                         Console.WriteLine("Client was disconnected, " + client.Key);
                         Server.TcpClients.Remove(client.Key);
+                        AddBackSpawnPoint(Server.ClientSpawnPoints[client.Key]);
+                        Server.ClientSpawnPoints.Remove(client.Key);
                         if (Server.TcpClients.Count > 0)
                         {
                             await using (TextWriter writer = new StringWriter())
@@ -287,5 +349,54 @@ namespace BlindServer
             Dispose(false);
         }
         #endregion
+
+        #region Spawning
+        private static List<int> _spawnPoints;
+    
+    
+        public static void AddBackSpawnPoint(int num)
+        {
+                        Console.WriteLine("Adding Back Spawn Point "+ num);
+
+            //Sort from highest to lowest as we're always adding and reading from the back like a stack.
+            if (_spawnPoints.Count == 0)
+            {
+                _spawnPoints.Add(num);
+                return;
+            }
+            //Sort, because we know with full certainty that numbers can only ever be 1 number out of place. We can do a single insert.
+            //Worst case O(2n) meaning a min heap is faster, but aint nobody got time for that.
+            for (int i = _spawnPoints.Count - 1; i >= 0; --i)
+            {
+                //3,5,6 //ADD 4.
+                Console.WriteLine($"Compare: {num}, > {_spawnPoints[i]}");
+                if (num < _spawnPoints[i])
+                {
+                    _spawnPoints.Insert(i+1, num);
+                    break;
+                }
+            }
+        }
+    
+        public static int GetSpawnPoint(string userName)
+        {
+
+            int k = _spawnPoints.Count - 1;
+            if (k == -1)
+            {
+                return 0;
+            }
+            int n = _spawnPoints[k];
+            _spawnPoints.RemoveAt(k);
+            Server.ClientSpawnPoints.Add(userName, n);
+            Console.WriteLine($"Trying to place {userName} at {n}");
+            return n;
+            
+           
+        }
+        
+
+        #endregion
+       
     }
 }

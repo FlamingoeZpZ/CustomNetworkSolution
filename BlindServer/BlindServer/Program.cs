@@ -18,10 +18,11 @@ public static class Server
     
     
     public static readonly Dictionary<string, Tuple<ulong,Socket>> TcpClients = new();
+    public static readonly Dictionary<string, int> ClientSpawnPoints = new();
     public static readonly HashSet<EndPoint> UdpClients = new();
     private static readonly string directory = "Settings.dat";
     public static int TCPMilliDelay = 20;
-    public static int UDPMilliDelay = 20;
+    public static int UDPMilliDelay = 1;
     
     public static List<ulong> GetAllIds(ulong ignore)
     {
@@ -69,6 +70,10 @@ public static class Server
             string[] args = str.Split(' ');
             switch (args[0])
             {
+                case "start":
+                case "begin":
+                    tcp.BeginGame();
+                    break;
                 case "quit": 
                     Console.WriteLine("Shutting down server");
                     tcp.Dispose();
@@ -138,6 +143,9 @@ public static class Server
             return false; // Return false to indicate failure
         }
     }
+    
+    
+    
 
    
 

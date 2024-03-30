@@ -48,7 +48,7 @@ namespace Netcode
                 udp = new UDPServer(adr, 8889);
                 IsLocallyConnected = true;
                 return true;
-                
+
             }
             catch (Exception e)
             {
@@ -127,15 +127,16 @@ namespace Netcode
             if (NetworkObjects.TryGetValue(ownerID, out var x))
             {
                 x.Add(myId, newObject);
-                if(ownerID == TCPServer.info.LocalUserId) BytesNeeded += newObject.UpdateSize + sizeof(int);
+                if (ownerID == TCPServer.info.LocalUserId) BytesNeeded += newObject.UpdateSize + sizeof(int);
             }
             else
             {
                 NetworkObjects.Add(ownerID,
                     new Dictionary<int, NetworkObject>
                         { { myId, newObject } }); //Create a new dictionary and add to that.
-                if(ownerID == TCPServer.info.LocalUserId)BytesNeeded += newObject.UpdateSize + sizeof(ulong) + sizeof(int);
-                
+                if (ownerID == TCPServer.info.LocalUserId)
+                    BytesNeeded += newObject.UpdateSize + sizeof(ulong) + sizeof(int);
+
             }
         }
 
@@ -159,7 +160,9 @@ namespace Netcode
             //1) Who's it from?
             int index = 0;
             //Possible interleaving issues...
-            ulong userID = BitConverter.ToUInt64(packet, index);//BitConverter.ToUInt64(packet,0); Why does BitConverter not work??
+            ulong userID =
+                BitConverter.ToUInt64(packet,
+                    index); //BitConverter.ToUInt64(packet,0); Why does BitConverter not work??
             index += sizeof(ulong);
 
             /*
@@ -178,15 +181,15 @@ namespace Netcode
                 {
                     print("Keys: " + VARIABLE.Key);
                 }
-                
-                Debug.LogError("Who does this guy think they are??? (Invalid USER ID)" + userID +", " + packet);
+
+                Debug.LogError("Who does this guy think they are??? (Invalid USER ID)" + userID + ", " + packet);
                 return;
             }
 
             //We're making an assumption that packets are always from one dude, and never a big merge pile
             while (index < len)
             {
-                
+
                 //for(int i = index; i < len; ++i)
                 /*
                  str.Clear();
@@ -202,11 +205,13 @@ namespace Netcode
                     //Debug.LogError("I've never met this OBJECT in my life: (Invalid OBJECT ID)" + objectID +", " + userID);
                     return;
                 }
+
                 y.ReceiveUpdate(ref packet, ref index);
             }
         }
 
         public static int BytesNeeded;
+
         public async Task SendUDPUpdate()
         {
             byte[] bytes = new byte[BytesNeeded]; // This would be better if it wasn't just a guess.
@@ -218,9 +223,9 @@ namespace Netcode
                 return;
             }
 
-            Buffer.BlockCopy(BitConverter.GetBytes(user),  0, bytes, 0,  sizeof(ulong));
+            Buffer.BlockCopy(BitConverter.GetBytes(user), 0, bytes, 0, sizeof(ulong));
             int index = sizeof(ulong);
-            
+
             //We're making an assumption that packets are always from one dude, and never a big merge pile
             foreach (var kvp in x)
             {
@@ -229,7 +234,7 @@ namespace Netcode
                 //index += sizeof(int);
                 kvp.Value.SendUpdate(ref bytes, ref index);
             }
-            
+
             await udp.UDPSend(bytes);
         }
 
@@ -238,9 +243,10 @@ namespace Netcode
         public void ReceivedMessageFromServer(Message msg)
         {
             //Do what needs to be done.
-            
+
             //First, let's convert to string... yikes... could serialize or just alloc 1 byte for message type...
-            print($"Interpretting message from: {msg.sender} for function {msg.functionName}, with {msg.content?.Length}Bytes");
+            print(
+                $"Interpretting message from: {msg.sender} for function {msg.functionName}, with {msg.content?.Length}Bytes");
             switch (msg.functionName)
             {
                 case 0:
@@ -255,33 +261,60 @@ namespace Netcode
                 case 3:
                     Instance.PlayerQuit(msg.sender, ref msg.content);
                     break;
+                case 4:
+                    Instance.BeginGame(ref msg.content);
+                    break;
+                case 5:
+                    Instance.EndGame(ref msg.content);
+                    break;
+                case 6:
+                    Quit();
+                    UIManagar.Disconnect(ref msg.content);
+                    break;
                 default:
-                Debug.LogError("Could not find id: " + msg.functionName);
+                    Debug.LogError("Could not find id: " + msg.functionName);
                     break;
             }
         }
 
+        private void EndGame(ref byte[] msgContent)
+        {
+            Quit();
+            GameBeginner.EndGame(Encoding.UTF8.GetString(msgContent));
+        }
+
+        private void BeginGame(ref byte[] content)
+        {
+            GameBeginner.StartGame(BitConverter.ToDouble(content));
+        }
+
         public void TcpSendMessageToServer(byte execType, string message)
         {
-            TcpSendMessageToServer(execType, Encoding.UTF8.GetBytes(message)); //This is redundant, but by passing a byte array in every other instance saves passing around copies.
+            TcpSendMessageToServer(execType,
+                Encoding.UTF8
+                    .GetBytes(message)); //This is redundant, but by passing a byte array in every other instance saves passing around copies.
         }
-        
+
         //I got lazy.
         readonly XmlSerializer _serializer = new(typeof(Message[]));
-        public void TcpSendMessageToServer(byte execType, byte[] message)
+
+        public async void TcpSendMessageToServer(byte execType, byte[] message)
         {
             using TextWriter writer = new StringWriter();
-            _serializer.Serialize(writer, new Message[]{ new (){
-                sender = TCPServer.info.LocalUserId,
-                functionName = execType,
-                content = message
-            }
+            _serializer.Serialize(writer, new Message[]
+            {
+                new()
+                {
+                    sender = TCPServer.info.LocalUserId,
+                    functionName = execType,
+                    content = message
+                }
             });
-            
+
             //Unless I'm being dumb, I think serialization may be questionable...
             string xml = writer.ToString();
             print("Sending: " + xml);
-            tcp.SendMessage(Encoding.UTF8.GetBytes(xml));
+            await tcp.SendMessage(Encoding.UTF8.GetBytes(xml));
         }
 
         private void Message(ref byte[] bytes)
@@ -293,32 +326,45 @@ namespace Netcode
         {
             print("Initialize Player Event Received");
             //Spawn player object, and assign it ownership
-            NetworkBehaviour.NetworkInstantiate(playerPrefab, transform.position, Quaternion.identity, id);
-            
+            //Spawn us
+         
+
             //If its our object, and we've just joined, we need to replicate everything else that already exists...
+            //Spawn everyone else
             if (id == TCPServer.info.LocalUserId)
             {
                 //But how do we know?
                 //We can serialize GameObjects as illegal as it is... May be the only way to spawn an object and instance it...
                 //What if we just don't care right now... And summon a box for each client... I think in the future, the server will have to store a serialized reference of each object
                 //But it's not possible to serialize a GameObject on an off server because wtf is a GameObject --> It doesn't matter, cus the Unity client is the only thing that looks at it anyways.
-
                 int idx = 0;
+                int startIdx = BitConverter.ToInt32(bytes, idx);
+                idx += sizeof(int);
+                Transform tr = SpawnManager.GetSpawnPoint(startIdx);
+                print($"Trying to spawn at position: {startIdx}, {tr.position} -->  {tr.rotation}");
+                NetworkBehaviour.NetworkInstantiate(playerPrefab, tr.position, tr.rotation, id);
+                
+                //Spawn everyone else
                 while (idx < bytes.Length)
                 {
                     ulong otherID = BitConverter.ToUInt64(bytes, idx);
                     idx += sizeof(ulong);
-                    NetworkBehaviour.NetworkInstantiate(playerPrefab, transform.position, Quaternion.identity, otherID);
+                    NetworkBehaviour.NetworkInstantiate(playerPrefab, Vector3.zero, Quaternion.identity, otherID);
                 }
+
                 udp.UDPHeartbeat();
+            }
+            else
+            { 
+                NetworkBehaviour.NetworkInstantiate(playerPrefab, Vector3.zero, Quaternion.identity, id);
             }
 
         }
 
         private void UpdateServerInfo(ref byte[] bytes)
         {
-           
-            
+
+
             string xml = Encoding.UTF8.GetString(bytes);
             using var reader = new StringReader(xml);
             var serializer = new XmlSerializer(typeof(ServerInfo));
@@ -346,7 +392,7 @@ namespace Netcode
             {
                 Destroy(pair.Value.gameObject);
             }
-            
+
             //If client, just kill all
             if (target == TCPServer.info.LocalUserId)
             {
@@ -357,6 +403,7 @@ namespace Netcode
             {
                 NetworkObjects.Remove(target);
             }
+
         }
 
         private void OnDestroy()
@@ -375,6 +422,25 @@ namespace Netcode
         {
             if (!NetworkObjects.TryGetValue(ownerId, out var x)) return 0;
             return x.Count + 1;
+        }
+
+
+        public async void EndGameClient()
+        {
+            using var writer = new StringWriter();
+            var serializer = new XmlSerializer(typeof(Message[]));
+            serializer.Serialize(writer, new Message []{ 
+                new ()
+                {
+                 sender   = 0,
+                 content = Encoding.UTF8.GetBytes(userName),
+                 functionName = 5
+                }
+            });
+            Console.WriteLine("Ending Game: " + writer.ToString());
+            await tcp.SendMessage(Encoding.UTF8.GetBytes(writer.ToString()));
+            GameBeginner.EndGame(userName);
+            Quit();
         }
     }
 }

@@ -90,7 +90,7 @@ public struct Wheel
 */
 			CurrentForwardSleep = Mathf.Abs(hit.forwardSlip);// forwardSlip;//(prevForwar + Mathf.Abs (forwardSlip)) / 2;
 			CurrentSidewaysSleep = Mathf.Abs(hit.sidewaysSlip);// sidewaysSlip;//(prevSide + Mathf.Abs (sidewaysSlip)) / 2;
-			Debug.Log($"Forward Slip: {CurrentForwardSleep}, Sideways Slip: {CurrentSidewaysSleep}");
+			//Debug.Log($"Forward Slip: {CurrentForwardSleep}, Sideways Slip: {CurrentSidewaysSleep}");
 		}
 		else
 		{
